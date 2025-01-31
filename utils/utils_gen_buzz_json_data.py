@@ -4,17 +4,17 @@ import random
 # Define the base messages and authors
 messages = [
     "I love Python!",
-    "Kafka is awesome.",
-    "Streaming data is fun.",
-    "This is a buzz message.",
-    "Have a great day!",
+    "Kafka is a work in progress.",
+    "Streaming data is interesting.",
+    "This is a new buzz message.",
+    "Have a wonderful day!",
     "Data engineering is my passion.",
     "JSON makes life easier.",
     "Distributed systems are fascinating.",
     "Hello, Kafka world!",
-    "Buzz messages for everyone."
+    "Buzz messages are for everyone."
 ]
-authors = ["Alice", "Bob", "Charlie", "Diana", "Eve"]
+authors = ["Sandra", "Bob", "Dylan", "Diana", "Sandra"]
 
 # Generate 100 random messages with authors
 buzz_data = [

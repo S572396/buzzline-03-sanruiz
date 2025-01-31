@@ -72,6 +72,10 @@ def main():
     start_time = time.time()
     try:
         for message_dict in generate_messages(DATA_FILE):
+            if message_count >= 250:  # Stop after sending 250 messages
+                logger.info("Message limit reached. Stopping producer.")
+                break
+            
             msg_start_time = time.time()
             producer.send(topic, value=message_dict)
             msg_end_time = time.time()
@@ -98,3 +102,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
