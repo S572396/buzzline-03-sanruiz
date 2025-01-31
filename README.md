@@ -59,7 +59,7 @@ python3 -m producers.json_producer_case
 What did we name the topic used with JSON data? 
 Hint: See the producer code and [.env](.env).
 
-Added a msg count
+Added a msg count to stop at 250 messages
 
 ## Task 6. Start a JSON Consumer
 
@@ -72,18 +72,22 @@ Windows:
 ```shell
 .venv\Scripts\activate
 py -m consumers.json_consumer_case
+py -m producers.json_producer_ruiz
 ```
+added to stop at 250 messages,changed names and wording
 
 Mac/Linux:
 ```zsh
 source .venv/bin/activate
 python3 -m consumers.json_consumer_case
+py -m consumers.json_consumer_ruiz
 ```
+Added word counts
 
 What did we name the topic used with JSON data? 
 Hint: See the consumer code and [.env](.env).
 
-Added a msg count
+
 
 ## Task 7. Start a CSV Producer
 
@@ -95,6 +99,8 @@ You will need to:
 4. Know how to use the -m (module flag to run your file as a module).
 5. Know the full name of the module you want to run. Hint: Look in the producers folder.
 6. Add my own unique for tempertature classificaton , low , normal, high
+
+py -m producers.csv_producer_ruiz
 
 What did we name the topic used with csv data? 
 Hint: See the producer code and [.env](.env).
@@ -108,7 +114,9 @@ You will need to:
 3. Know the command that works on your machine to execute python (e.g. py or python3).
 4. Know how to use the -m (module flag to run your file as a module).
 5. Know the full name of the module you want to run. Hint: Look in the consumers folder.
-6. Added new messages about the temeratures it feels nice, hot, etc.
+6. Added new messages about the temerature ranges, such as its getting warmer message.
+
+py -m consumers.csv_consumer_ruiz
 
 What did we name the topic used with csv data? 
 Hint: See the consumer code and [.env](.env).
