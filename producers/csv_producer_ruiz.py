@@ -1,10 +1,15 @@
 """
-csv_producer_case.py
+csv_producer_ruiz.py
 
 Stream numeric data to a Kafka topic.
 
 It is common to transfer csv data as JSON so 
 each field is clearly labeled. 
+
+Includes classification of temperature values:
+- Low (< 225°F)
+- Normal (225°F - 275°F)
+- High (> 275°F)
 """
 
 #####################################
@@ -74,6 +79,29 @@ DATA_FILE = DATA_FOLDER.joinpath("smoker_temps.csv")
 logger.info(f"Data file: {DATA_FILE}")
 
 #####################################
+# Classification Function
+#####################################
+
+
+def classify_temperature(temp: float) -> str:
+    """
+    Classify the temperature into one of three categories.
+
+    Args:
+        temp (float): The temperature value.
+
+    Returns:
+        str: Classification ('Low', 'Normal', or 'High').
+    """
+    if temp < 225:
+        return "Low"
+    elif 225 <= temp <= 275:
+        return "Normal"
+    else:
+        return "High"
+
+
+#####################################
 # Message Generator
 #####################################
 
@@ -86,7 +114,7 @@ def generate_messages(file_path: pathlib.Path):
         file_path (pathlib.Path): Path to the CSV file.
 
     Yields:
-        str: CSV row formatted as a string.
+        dict: JSON message containing timestamp, temperature, and classification.
     """
     while True:
         try:
@@ -101,11 +129,20 @@ def generate_messages(file_path: pathlib.Path):
                         logger.error(f"Missing 'temperature' column in row: {row}")
                         continue
 
-                    # Generate a timestamp and prepare the message
+                    # Convert temperature to float
+                    temp_value = float(row["temperature"])
+
+                    # Generate a timestamp
                     current_timestamp = datetime.utcnow().isoformat()
+
+                    # Classify temperature
+                    classification = classify_temperature(temp_value)
+
+                    # Prepare message
                     message = {
                         "timestamp": current_timestamp,
-                        "temperature": float(row["temperature"]),
+                        "temperature": temp_value,
+                        "classification": classification,
                     }
                     logger.debug(f"Generated message: {message}")
                     yield message
@@ -128,7 +165,7 @@ def main():
 
     - Reads the Kafka topic name from an environment variable.
     - Creates a Kafka producer using the `create_kafka_producer` utility.
-    - Streams messages to the Kafka topic.
+    - Streams classified messages to the Kafka topic.
     """
 
     logger.info("START producer.")
@@ -159,8 +196,8 @@ def main():
         logger.error(f"Failed to create or verify topic '{topic}': {e}")
         sys.exit(1)
 
-    # Generate and send messages
-    logger.info(f"Starting message production to topic '{topic}'...")
+    # Generate and send classified messages
+    logger.info(f"Starting message production to topic '{topic}' with classification...")
     try:
         for csv_message in generate_messages(DATA_FILE):
             producer.send(topic, value=csv_message)
@@ -183,4 +220,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
