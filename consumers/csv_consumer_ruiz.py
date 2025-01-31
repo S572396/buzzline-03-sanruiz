@@ -48,11 +48,11 @@ def process_message(message: dict):
     # Determine additional messages based on temperature
     additional_message = ""
     if 70 <= temp <= 75:
-        additional_message = "It feels nice today."
+        additional_message = "Its a nice temp."
     elif temp >= 89:
-        additional_message = "It's too hot today!"
-    elif temp < 65:
-        additional_message = "It's cold outside!"
+        additional_message = "Its getting warmer!"
+    elif temp >100:
+        additional_message = "It's getting hot!"
     
     # Log processed message
     logger.info(f"[{timestamp}] Temperature: {temp}°F - Classification: {classification} {additional_message}")

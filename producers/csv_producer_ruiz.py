@@ -93,9 +93,9 @@ def classify_temperature(temp: float) -> str:
     Returns:
         str: Classification ('Low', 'Normal', or 'High').
     """
-    if temp < 225:
+    if temp < 75:
         return "Low"
-    elif 225 <= temp <= 275:
+    elif 70 <= temp <= 79:
         return "Normal"
     else:
         return "High"
