@@ -1,11 +1,39 @@
+"""
+csv_producer_ruiz.py
+
+Stream numeric data to a Kafka topic.
+
+It is common to transfer csv data as JSON so 
+each field is clearly labeled. 
+
+Includes classification of temperature values:
+- Low (< 225°F)
+- Normal (225°F - 275°F)
+- High (> 275°F)
+"""
+
 #####################################
 # Import Modules
 #####################################
 
+# Import packages from Python Standard Library
 import os
-import json
-from kafka import KafkaConsumer
+import sys
+import time  # control message intervals
+import pathlib  # work with file paths
+import csv  # handle CSV data
+import json  # work with JSON data
+from datetime import datetime  # work with timestamps
+
+# Import external packages
 from dotenv import load_dotenv
+
+# Import functions from local modules
+from utils.utils_producer import (
+    verify_services,
+    create_kafka_producer,
+    create_kafka_topic,
+)
 from utils.utils_logger import logger
 
 #####################################
@@ -14,84 +42,181 @@ from utils.utils_logger import logger
 
 load_dotenv()
 
+#####################################
+# Getter Functions for .env Variables
+#####################################
+
+
 def get_kafka_topic() -> str:
     """Fetch Kafka topic from environment or use default."""
     topic = os.getenv("SMOKER_TOPIC", "unknown_topic")
     logger.info(f"Kafka topic: {topic}")
     return topic
 
-def get_kafka_bootstrap_servers() -> str:
-    """Fetch Kafka bootstrap servers from environment or use default."""
-    servers = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "localhost:9092")
-    logger.info(f"Kafka bootstrap servers: {servers}")
-    return servers
+
+def get_message_interval() -> int:
+    """Fetch message interval from environment or use default."""
+    interval = int(os.getenv("SMOKER_INTERVAL_SECONDS", 1))
+    logger.info(f"Message interval: {interval} seconds")
+    return interval
+
 
 #####################################
-# Message Processing
+# Set up Paths
 #####################################
 
-def process_message(message: dict):
+# The parent directory of this file is its folder.
+# Go up one more parent level to get the project root.
+PROJECT_ROOT = pathlib.Path(__file__).parent.parent
+logger.info(f"Project root: {PROJECT_ROOT}")
+
+# Set directory where data is stored
+DATA_FOLDER = PROJECT_ROOT.joinpath("data")
+logger.info(f"Data folder: {DATA_FOLDER}")
+
+# Set the name of the data file
+DATA_FILE = DATA_FOLDER.joinpath("smoker_temps.csv")
+logger.info(f"Data file: {DATA_FILE}")
+
+#####################################
+# Classification Function
+#####################################
+
+
+def classify_temperature(temp: float) -> str:
     """
-    Process incoming Kafka message.
-    
+    Classify the temperature into one of three categories.
+
     Args:
-        message (dict): Incoming Kafka message containing timestamp, temperature, and classification.
+        temp (float): The temperature value.
+
+    Returns:
+        str: Classification ('Low', 'Normal', or 'High').
     """
-    temp = message.get("temperature", None)
-    classification = message.get("classification", "Unknown")
-    timestamp = message.get("timestamp", "Unknown")
-    
-    if temp is None:
-        logger.error("Received message without temperature data.")
-        return
-    
-    # Determine additional messages based on temperature
-    additional_message = ""
-    if 70 <= temp <= 75:
-        additional_message = "It feels nice today."
-    elif temp >= 89:
-        additional_message = "It's too hot today!"
-    elif temp < 65:
-        additional_message = "It's cold outside!"
-    
-    # Log processed message
-    logger.info(f"[{timestamp}] Temperature: {temp}°F - Classification: {classification} {additional_message}")
+    if temp < 225:
+        return "Low"
+    elif 225 <= temp <= 275:
+        return "Normal"
+    else:
+        return "High"
+
 
 #####################################
-# Kafka Consumer
+# Message Generator
 #####################################
+
+
+def generate_messages(file_path: pathlib.Path):
+    """
+    Read from a csv file and yield records one by one, continuously.
+
+    Args:
+        file_path (pathlib.Path): Path to the CSV file.
+
+    Yields:
+        dict: JSON message containing timestamp, temperature, and classification.
+    """
+    while True:
+        try:
+            logger.info(f"Opening data file in read mode: {DATA_FILE}")
+            with open(DATA_FILE, "r") as csv_file:
+                logger.info(f"Reading data from file: {DATA_FILE}")
+
+                csv_reader = csv.DictReader(csv_file)
+                for row in csv_reader:
+                    # Ensure required fields are present
+                    if "temperature" not in row:
+                        logger.error(f"Missing 'temperature' column in row: {row}")
+                        continue
+
+                    # Convert temperature to float
+                    temp_value = float(row["temperature"])
+
+                    # Generate a timestamp
+                    current_timestamp = datetime.utcnow().isoformat()
+
+                    # Classify temperature
+                    classification = classify_temperature(temp_value)
+
+                    # Prepare message
+                    message = {
+                        "timestamp": current_timestamp,
+                        "temperature": temp_value,
+                        "classification": classification,
+                    }
+                    logger.debug(f"Generated message: {message}")
+                    yield message
+        except FileNotFoundError:
+            logger.error(f"File not found: {file_path}. Exiting.")
+            sys.exit(1)
+        except Exception as e:
+            logger.error(f"Unexpected error in message generation: {e}")
+            sys.exit(3)
+
+
+#####################################
+# Define main function for this module.
+#####################################
+
 
 def main():
     """
-    Main entry point for the Kafka consumer.
-    
-    - Connects to the Kafka topic.
-    - Listens for incoming messages.
-    - Processes each message.
+    Main entry point for the producer.
+
+    - Reads the Kafka topic name from an environment variable.
+    - Creates a Kafka producer using the `create_kafka_producer` utility.
+    - Streams classified messages to the Kafka topic.
     """
+
+    logger.info("START producer.")
+    verify_services()
+
+    # fetch .env content
     topic = get_kafka_topic()
-    bootstrap_servers = get_kafka_bootstrap_servers()
-    
-    consumer = KafkaConsumer(
-        topic,
-        bootstrap_servers=bootstrap_servers,
-        value_deserializer=lambda x: json.loads(x.decode("utf-8")),
-        auto_offset_reset="earliest",
-        enable_auto_commit=True,
+    interval_secs = get_message_interval()
+
+    # Verify the data file exists
+    if not DATA_FILE.exists():
+        logger.error(f"Data file not found: {DATA_FILE}. Exiting.")
+        sys.exit(1)
+
+    # Create the Kafka producer
+    producer = create_kafka_producer(
+        value_serializer=lambda x: json.dumps(x).encode("utf-8")
     )
-    
-    logger.info(f"Listening for messages on topic: {topic}")
-    
+    if not producer:
+        logger.error("Failed to create Kafka producer. Exiting...")
+        sys.exit(3)
+
+    # Create topic if it doesn't exist
     try:
-        for message in consumer:
-            process_message(message.value)
-    except KeyboardInterrupt:
-        logger.warning("Consumer interrupted by user.")
+        create_kafka_topic(topic)
+        logger.info(f"Kafka topic '{topic}' is ready.")
     except Exception as e:
-        logger.error(f"Error in Kafka consumer: {e}")
+        logger.error(f"Failed to create or verify topic '{topic}': {e}")
+        sys.exit(1)
+
+    # Generate and send classified messages
+    logger.info(f"Starting message production to topic '{topic}' with classification...")
+    try:
+        for csv_message in generate_messages(DATA_FILE):
+            producer.send(topic, value=csv_message)
+            logger.info(f"Sent message to topic '{topic}': {csv_message}")
+            time.sleep(interval_secs)
+    except KeyboardInterrupt:
+        logger.warning("Producer interrupted by user.")
+    except Exception as e:
+        logger.error(f"Error during message production: {e}")
     finally:
-        consumer.close()
-        logger.info("Kafka consumer closed.")
+        producer.close()
+        logger.info("Kafka producer closed.")
+
+    logger.info("END producer.")
+
+
+#####################################
+# Conditional Execution
+#####################################
 
 if __name__ == "__main__":
     main()
